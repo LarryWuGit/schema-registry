@@ -19,6 +19,10 @@ print_synopsis() {
 }
 
 EXTRA_ARGS=${EXTRA_ARGS-'-name schemaRegistry'}
+
+# To attach to a debugger, use the following
+EXTRA_ARGS=${EXTRA_ARGS-'-name schemaRegistry -agentlib:jdwp=transport=dt_socket,server=y,address=8000,suspend=n'}
+
 # EXTRA_ARGS=${EXTRA_ARGS-'-name schemaRegistry -loggc'}
 
 ARG=$1

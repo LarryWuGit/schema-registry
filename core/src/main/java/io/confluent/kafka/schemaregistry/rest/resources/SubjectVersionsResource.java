@@ -1,12 +1,12 @@
 /**
  * Copyright 2014 Confluent Inc.
- *
+ * <p>
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
- *
+ * <p>
  * http://www.apache.org/licenses/LICENSE-2.0
- *
+ * <p>
  * Unless required by applicable law or agreed to in writing, software
  * distributed under the License is distributed on an "AS IS" BASIS,
  * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
@@ -16,13 +16,20 @@
 
 package io.confluent.kafka.schemaregistry.rest.resources;
 
+import io.confluent.kafka.schemaregistry.client.rest.Versions;
+import io.confluent.kafka.schemaregistry.client.rest.entities.Schema;
+import io.confluent.kafka.schemaregistry.client.rest.entities.requests.RegisterSchemaRequest;
+import io.confluent.kafka.schemaregistry.client.rest.entities.requests.RegisterSchemaResponse;
+import io.confluent.kafka.schemaregistry.exceptions.InvalidVersionException;
+import io.confluent.kafka.schemaregistry.exceptions.SchemaRegistryException;
+import io.confluent.kafka.schemaregistry.exceptions.SchemaRegistryStoreException;
+import io.confluent.kafka.schemaregistry.rest.VersionId;
+import io.confluent.kafka.schemaregistry.rest.exceptions.Errors;
+import io.confluent.kafka.schemaregistry.storage.HBaseSchemaRegistry;
+import io.confluent.kafka.schemaregistry.storage.SchemaRegistry;
+import io.confluent.rest.annotations.PerformanceMetric;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-
-import java.util.ArrayList;
-import java.util.Iterator;
-import java.util.List;
-import java.util.Map;
 
 import javax.validation.constraints.NotNull;
 import javax.ws.rs.Consumes;
@@ -36,40 +43,29 @@ import javax.ws.rs.container.AsyncResponse;
 import javax.ws.rs.container.Suspended;
 import javax.ws.rs.core.Context;
 import javax.ws.rs.core.HttpHeaders;
-
-import io.confluent.kafka.schemaregistry.client.rest.Versions;
-import io.confluent.kafka.schemaregistry.client.rest.entities.Schema;
-import io.confluent.kafka.schemaregistry.client.rest.entities.requests.RegisterSchemaRequest;
-import io.confluent.kafka.schemaregistry.client.rest.entities.requests.RegisterSchemaResponse;
-import io.confluent.kafka.schemaregistry.exceptions.IncompatibleSchemaException;
-import io.confluent.kafka.schemaregistry.exceptions.InvalidSchemaException;
-import io.confluent.kafka.schemaregistry.exceptions.InvalidVersionException;
-import io.confluent.kafka.schemaregistry.exceptions.SchemaRegistryException;
-import io.confluent.kafka.schemaregistry.exceptions.SchemaRegistryRequestForwardingException;
-import io.confluent.kafka.schemaregistry.exceptions.SchemaRegistryStoreException;
-import io.confluent.kafka.schemaregistry.exceptions.SchemaRegistryTimeoutException;
-import io.confluent.kafka.schemaregistry.exceptions.UnknownMasterException;
-import io.confluent.kafka.schemaregistry.rest.VersionId;
-import io.confluent.kafka.schemaregistry.rest.exceptions.Errors;
-import io.confluent.kafka.schemaregistry.storage.KafkaSchemaRegistry;
-import io.confluent.rest.annotations.PerformanceMetric;
+import java.util.ArrayList;
+import java.util.Iterator;
+import java.util.List;
+import java.util.Map;
 
 @Path("/subjects/{subject}/versions")
 @Produces({Versions.SCHEMA_REGISTRY_V1_JSON_WEIGHTED,
-           Versions.SCHEMA_REGISTRY_DEFAULT_JSON_WEIGHTED,
-           Versions.JSON_WEIGHTED})
+    Versions.SCHEMA_REGISTRY_DEFAULT_JSON_WEIGHTED,
+    Versions.JSON_WEIGHTED})
 @Consumes({Versions.SCHEMA_REGISTRY_V1_JSON,
-           Versions.SCHEMA_REGISTRY_DEFAULT_JSON,
-           Versions.JSON, Versions.GENERIC_REQUEST})
+    Versions.SCHEMA_REGISTRY_DEFAULT_JSON,
+    Versions.JSON, Versions.GENERIC_REQUEST})
 public class SubjectVersionsResource {
 
   private static final Logger log = LoggerFactory.getLogger(SubjectVersionsResource.class);
 
-  private final KafkaSchemaRegistry schemaRegistry;
+  //private final KafkaSchemaRegistry schemaRegistry;
+  private final SchemaRegistry schemaRegistry;
+
 
   private final RequestHeaderBuilder requestHeaderBuilder = new RequestHeaderBuilder();
 
-  public SubjectVersionsResource(KafkaSchemaRegistry registry) {
+  public SubjectVersionsResource(SchemaRegistry registry) {
     this.schemaRegistry = registry;
   }
 
@@ -85,21 +81,16 @@ public class SubjectVersionsResource {
       throw Errors.invalidVersionException();
     }
     Schema schema = null;
-    String errorMessage = null;
     try {
-      schema = schemaRegistry.validateAndGetSchema(subject, versionId, false);
-    } catch (SchemaRegistryStoreException e) {
-      errorMessage =
-          "Error while retrieving schema for subject "
-          + subject
-          + " with version "
-          + version
-          + " from the schema registry";
-      log.debug(errorMessage, e);
-      throw Errors.storeException(errorMessage, e);
-    } catch (InvalidVersionException e) {
-      throw Errors.invalidVersionException();
+      schema = ((HBaseSchemaRegistry) schemaRegistry).get(subject, versionId.getVersionId(), false);
     } catch (SchemaRegistryException e) {
+      //e.printStackTrace();
+      String errorMessage =
+          "Error while retrieving schema for subject "
+              + subject
+              + " with version "
+              + version
+              + " from the schema registry";
       throw Errors.schemaRegistryException(errorMessage, e);
     }
     return schema;
@@ -120,8 +111,8 @@ public class SubjectVersionsResource {
     Iterator<Schema> allSchemasForThisTopic = null;
     List<Integer> allVersions = new ArrayList<Integer>();
     String errorMessage = "Error while validating that subject "
-                          + subject
-                          + " exists in the registry";
+        + subject
+        + " exists in the registry";
     try {
       if (!schemaRegistry.listSubjects().contains(subject)) {
         throw Errors.subjectNotFoundException();
@@ -132,7 +123,7 @@ public class SubjectVersionsResource {
       throw Errors.schemaRegistryException(errorMessage, e);
     }
     errorMessage = "Error while listing all versions for subject "
-                   + subject;
+        + subject;
     try {
       //return only non-deleted versions for the subject
       allSchemasForThisTopic = schemaRegistry.getAllVersions(subject, false);
@@ -157,30 +148,18 @@ public class SubjectVersionsResource {
 
     Map<String, String> headerProperties = requestHeaderBuilder.buildRequestHeaders(headers);
 
-    Schema schema = new Schema(subjectName, 0, 0, request.getSchema());
-    int id = 0;
+    int schemaId;
     try {
-      id = schemaRegistry.registerOrForward(subjectName, schema, headerProperties);
-    } catch (InvalidSchemaException e) {
-      throw Errors.invalidAvroException("Input schema is an invalid Avro schema", e);
-    } catch (SchemaRegistryTimeoutException e) {
-      throw Errors.operationTimeoutException("Register operation timed out", e);
-    } catch (SchemaRegistryStoreException e) {
-      throw Errors.storeException("Register schema operation failed while writing"
-                                  + " to the Kafka store", e);
-    } catch (SchemaRegistryRequestForwardingException e) {
-      throw Errors.requestForwardingFailedException("Error while forwarding register schema request"
-                                                    + " to the master", e);
-    } catch (IncompatibleSchemaException e) {
-      throw Errors.incompatibleSchemaException("Schema being registered is incompatible with an"
-                                               + " earlier schema", e);
-    } catch (UnknownMasterException e) {
-      throw Errors.unknownMasterException("Master not known.", e);
+      Schema schema = new Schema(subjectName, 0, 0, request.getSchema());
+      schemaId = schemaRegistry.register(subjectName, schema);
     } catch (SchemaRegistryException e) {
-      throw Errors.schemaRegistryException("Error while registering schema", e);
+      e.printStackTrace();
+
+      throw Errors.storeException("Register schema operation failed while writing"
+          + " to the Kafka store", e);
     }
     RegisterSchemaResponse registerSchemaResponse = new RegisterSchemaResponse();
-    registerSchemaResponse.setId(id);
+    registerSchemaResponse.setId(schemaId);
     asyncResponse.resume(registerSchemaResponse);
   }
 
@@ -198,41 +177,7 @@ public class SubjectVersionsResource {
       throw Errors.invalidVersionException();
     }
     Schema schema = null;
-    String errorMessage = null;
-    try {
-      schema = schemaRegistry.validateAndGetSchema(subject, versionId, false);
-    } catch (SchemaRegistryStoreException e) {
-      errorMessage =
-          "Error while retrieving schema for subject "
-          + subject
-          + " with version "
-          + version
-          + " from the schema registry";
-      log.debug(errorMessage, e);
-      throw Errors.storeException(errorMessage, e);
-    } catch (InvalidVersionException e) {
-      throw Errors.invalidVersionException();
-    } catch (SchemaRegistryException e) {
-      throw Errors.schemaRegistryException(errorMessage, e);
-    }
-    try {
-      Map<String, String> headerProperties = requestHeaderBuilder.buildRequestHeaders(headers);
-      schemaRegistry.deleteSchemaVersionOrForward(headerProperties, subject, schema);
-    } catch (SchemaRegistryTimeoutException e) {
-      throw Errors.operationTimeoutException("Delete Schema Version operation timed out", e);
-    } catch (SchemaRegistryStoreException e) {
-      throw Errors.storeException("Delete Schema Version operation failed while writing"
-                                  + " to the Kafka store", e);
-    } catch (SchemaRegistryRequestForwardingException e) {
-      throw Errors
-          .requestForwardingFailedException("Error while forwarding delete schema version request"
-                                            + " to the master", e);
-    } catch (UnknownMasterException e) {
-      throw Errors.unknownMasterException("Master not known.", e);
-    } catch (SchemaRegistryException e) {
-      throw Errors.schemaRegistryException("Error while deleting Schema Version", e);
-    }
-
+    schema = new Schema("test subject", 1, 1, "test schema");
     asyncResponse.resume(schema.getVersion());
   }
 }

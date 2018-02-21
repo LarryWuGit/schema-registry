@@ -1,12 +1,12 @@
 /**
  * Copyright 2014 Confluent Inc.
- *
+ * <p>
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
- *
+ * <p>
  * http://www.apache.org/licenses/LICENSE-2.0
- *
+ * <p>
  * Unless required by applicable law or agreed to in writing, software
  * distributed under the License is distributed on an "AS IS" BASIS,
  * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
@@ -16,6 +16,7 @@
 
 package io.confluent.kafka.schemaregistry.rest.resources;
 
+import io.confluent.kafka.schemaregistry.storage.SchemaRegistry;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -30,22 +31,21 @@ import io.confluent.kafka.schemaregistry.client.rest.entities.SchemaString;
 import io.confluent.kafka.schemaregistry.exceptions.SchemaRegistryException;
 import io.confluent.kafka.schemaregistry.exceptions.SchemaRegistryStoreException;
 import io.confluent.kafka.schemaregistry.rest.exceptions.Errors;
-import io.confluent.kafka.schemaregistry.storage.KafkaSchemaRegistry;
 import io.confluent.rest.annotations.PerformanceMetric;
 
 @Path("/schemas")
 @Produces({Versions.SCHEMA_REGISTRY_V1_JSON_WEIGHTED,
-           Versions.SCHEMA_REGISTRY_DEFAULT_JSON_WEIGHTED,
-           Versions.JSON_WEIGHTED})
+    Versions.SCHEMA_REGISTRY_DEFAULT_JSON_WEIGHTED,
+    Versions.JSON_WEIGHTED})
 @Consumes({Versions.SCHEMA_REGISTRY_V1_JSON,
-           Versions.SCHEMA_REGISTRY_DEFAULT_JSON,
-           Versions.JSON, Versions.GENERIC_REQUEST})
+    Versions.SCHEMA_REGISTRY_DEFAULT_JSON,
+    Versions.JSON, Versions.GENERIC_REQUEST})
 public class SchemasResource {
 
   private static final Logger log = LoggerFactory.getLogger(SchemasResource.class);
-  private final KafkaSchemaRegistry schemaRegistry;
+  private final SchemaRegistry schemaRegistry;
 
-  public SchemasResource(KafkaSchemaRegistry schemaRegistry) {
+  public SchemasResource(SchemaRegistry schemaRegistry) {
     this.schemaRegistry = schemaRegistry;
   }
 
@@ -55,7 +55,7 @@ public class SchemasResource {
   public SchemaString getSchema(@PathParam("id") Integer id) {
     SchemaString schema = null;
     String errorMessage = "Error while retrieving schema with id " + id + " from the schema "
-                          + "registry";
+        + "registry";
     try {
       schema = schemaRegistry.get(id);
     } catch (SchemaRegistryStoreException e) {

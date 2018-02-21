@@ -1,12 +1,12 @@
 /**
  * Copyright 2014 Confluent Inc.
- *
+ * <p>
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
- *
+ * <p>
  * http://www.apache.org/licenses/LICENSE-2.0
- *
+ * <p>
  * Unless required by applicable law or agreed to in writing, software
  * distributed under the License is distributed on an "AS IS" BASIS,
  * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
@@ -16,11 +16,10 @@
 
 package io.confluent.kafka.schemaregistry.rest.resources;
 
+import io.confluent.kafka.schemaregistry.storage.SchemaRegistry;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import java.util.List;
-import java.util.Map;
 import java.util.Set;
 
 import javax.validation.Valid;
@@ -44,23 +43,22 @@ import io.confluent.kafka.schemaregistry.client.rest.entities.requests.RegisterS
 import io.confluent.kafka.schemaregistry.exceptions.SchemaRegistryException;
 import io.confluent.kafka.schemaregistry.exceptions.SchemaRegistryStoreException;
 import io.confluent.kafka.schemaregistry.rest.exceptions.Errors;
-import io.confluent.kafka.schemaregistry.storage.KafkaSchemaRegistry;
 import io.confluent.rest.annotations.PerformanceMetric;
 
 @Path("/subjects")
 @Produces({Versions.SCHEMA_REGISTRY_V1_JSON_WEIGHTED,
-           Versions.SCHEMA_REGISTRY_DEFAULT_JSON_WEIGHTED,
-           Versions.JSON_WEIGHTED})
+    Versions.SCHEMA_REGISTRY_DEFAULT_JSON_WEIGHTED,
+    Versions.JSON_WEIGHTED})
 @Consumes({Versions.SCHEMA_REGISTRY_V1_JSON,
-           Versions.SCHEMA_REGISTRY_DEFAULT_JSON,
-           Versions.JSON, Versions.GENERIC_REQUEST})
+    Versions.SCHEMA_REGISTRY_DEFAULT_JSON,
+    Versions.JSON, Versions.GENERIC_REQUEST})
 public class SubjectsResource {
 
   private static final Logger log = LoggerFactory.getLogger(SubjectsResource.class);
-  private final KafkaSchemaRegistry schemaRegistry;
+  private final SchemaRegistry schemaRegistry;
   private final RequestHeaderBuilder requestHeaderBuilder = new RequestHeaderBuilder();
 
-  public SubjectsResource(KafkaSchemaRegistry schemaRegistry) {
+  public SubjectsResource(SchemaRegistry schemaRegistry) {
     this.schemaRegistry = schemaRegistry;
   }
 
@@ -83,14 +81,13 @@ public class SubjectsResource {
           schemaRegistry.lookUpSchemaUnderSubject(subject, schema, lookupDeletedSchema);
     } catch (SchemaRegistryException e) {
       throw Errors.schemaRegistryException("Error while looking up schema under subject " + subject,
-                                           e);
+          e);
     }
     if (matchingSchema == null) {
       throw Errors.schemaNotFoundException();
     }
     asyncResponse.resume(matchingSchema);
   }
-
 
 
   @GET
@@ -112,7 +109,7 @@ public class SubjectsResource {
   public void deleteSubject(final @Suspended AsyncResponse asyncResponse,
                             @Context HttpHeaders headers,
                             @PathParam("subject") String subject) {
-    List<Integer> deletedVersions;
+    /*List<Integer> deletedVersions;
     try {
       if (!schemaRegistry.listSubjects().contains(subject)) {
         throw Errors.subjectNotFoundException();
@@ -123,7 +120,9 @@ public class SubjectsResource {
       throw Errors.schemaRegistryException("Error while deleting the subject " + subject,
                                            e);
     }
-    asyncResponse.resume(deletedVersions);
+    asyncResponse.resume(deletedVersions);*/
+
+    throw Errors.schemaNotFoundException();
   }
 
 }
