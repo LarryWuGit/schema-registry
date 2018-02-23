@@ -16,31 +16,18 @@
 
 package io.confluent.kafka.schemaregistry.rest;
 
-import org.apache.kafka.common.security.JaasUtils;
-import org.apache.kafka.common.security.auth.SecurityProtocol;
-import org.apache.kafka.common.utils.Utils;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
-
-import java.net.InetAddress;
-import java.net.UnknownHostException;
-import java.util.HashSet;
-import java.util.LinkedList;
-import java.util.List;
-import java.util.Locale;
-import java.util.Properties;
-import java.util.Set;
-
 import io.confluent.common.config.ConfigDef;
 import io.confluent.common.config.ConfigException;
 import io.confluent.kafka.schemaregistry.avro.AvroCompatibilityLevel;
 import io.confluent.rest.RestConfig;
 import io.confluent.rest.RestConfigException;
-import kafka.cluster.Broker;
-import kafka.cluster.EndPoint;
-import kafka.utils.ZkUtils;
-import scala.collection.JavaConversions;
-import scala.collection.Seq;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
+import java.net.InetAddress;
+import java.net.UnknownHostException;
+import java.util.List;
+import java.util.Properties;
 
 import static io.confluent.common.config.ConfigDef.Range.atLeast;
 import static io.confluent.kafka.schemaregistry.client.rest.Versions.PREFERRED_RESPONSE_TYPES;
@@ -383,10 +370,6 @@ public class SchemaRegistryConfig extends RestConfig {
             METRICS_JMX_PREFIX_DEFAULT_OVERRIDE, ConfigDef.Importance.LOW,
             METRICS_JMX_PREFIX_DOC
         )
-        .define(KAFKASTORE_SECURITY_PROTOCOL_CONFIG, ConfigDef.Type.STRING,
-            SecurityProtocol.PLAINTEXT.toString(), ConfigDef.Importance.MEDIUM,
-            KAFKASTORE_SECURITY_PROTOCOL_DOC
-        )
         .define(KAFKASTORE_SSL_TRUSTSTORE_LOCATION_CONFIG, ConfigDef.Type.STRING,
             "", ConfigDef.Importance.HIGH,
             KAFKASTORE_SSL_TRUSTSTORE_LOCATION_DOC
@@ -527,28 +510,12 @@ public class SchemaRegistryConfig extends RestConfig {
   }
 
   public String bootstrapBrokers() {
-    int zkSessionTimeoutMs = getInt(KAFKASTORE_ZK_SESSION_TIMEOUT_MS_CONFIG);
-
     List<String> bootstrapServersConfig = getList(KAFKASTORE_BOOTSTRAP_SERVERS_CONFIG);
     List<String> endpoints;
 
     if (bootstrapServersConfig.isEmpty()) {
-      ZkUtils zkUtils = null;
-      try {
-        zkUtils =
-            ZkUtils.apply(getString(KAFKASTORE_CONNECTION_URL_CONFIG),
-                zkSessionTimeoutMs,
-                zkSessionTimeoutMs,
-                checkZkAclConfig()
-            );
-        Seq<Broker> brokerSeq = zkUtils.getAllBrokersInCluster();
-        endpoints = brokersToEndpoints(JavaConversions.seqAsJavaList(brokerSeq));
-      } finally {
-        if (zkUtils != null) {
-          zkUtils.close();
-        }
-        log.debug("Kafka store zookeeper client shut down");
-      }
+      log.debug("Schema Registry storage servers shut down");
+      return null;
     } else {
       endpoints = bootstrapServersConfig;
     }
@@ -558,43 +525,7 @@ public class SchemaRegistryConfig extends RestConfig {
     );
   }
 
-  /**
-   * Checks if the user has configured ZooKeeper ACLs or not. Throws an exception if the ZooKeeper
-   * client is set to create znodes with an ACL, yet the JAAS config is not present. Otherwise,
-   * returns whether or not the user has enabled ZooKeeper ACLs.
-   */
-  public boolean checkZkAclConfig() {
-    if (getBoolean(ZOOKEEPER_SET_ACL_CONFIG) && !JaasUtils.isZkSecurityEnabled()) {
-      throw new ConfigException(ZOOKEEPER_SET_ACL_CONFIG
-                                + " is set to true but ZooKeeper's "
-                                + "JAAS SASL configuration is not configured.");
-    }
-    return getBoolean(ZOOKEEPER_SET_ACL_CONFIG);
-  }
-
-  static List<String> brokersToEndpoints(List<Broker> brokers) {
-    final List<String> endpoints = new LinkedList<>();
-    for (Broker broker : brokers) {
-      for (EndPoint ep : JavaConversions.asJavaCollection(broker.endPoints())) {
-        String
-            hostport =
-            ep.host() == null ? ":" + ep.port() : Utils.formatAddress(ep.host(), ep.port());
-        String endpoint = ep.securityProtocol() + "://" + hostport;
-
-        endpoints.add(endpoint);
-      }
-    }
-
-    return endpoints;
-  }
-
   static String endpointsToBootstrapServers(List<String> endpoints, String securityProtocol) {
-    final Set<String> supportedSecurityProtocols = new HashSet<>(SecurityProtocol.names());
-    if (!supportedSecurityProtocols.contains(securityProtocol.toUpperCase(Locale.ROOT))) {
-      throw new ConfigException(
-          "Only PLAINTEXT, SSL, SASL_PLAINTEXT, and SASL_SSL Kafka endpoints are supported.");
-    }
-
     final String securityProtocolUrlPrefix = securityProtocol + "://";
     final StringBuilder sb = new StringBuilder();
     for (String endpoint : endpoints) {

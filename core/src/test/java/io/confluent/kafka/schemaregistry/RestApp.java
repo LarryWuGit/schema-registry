@@ -88,25 +88,4 @@ public class RestApp {
       restServer.join();
     }
   }
-
-  public boolean isMaster() {
-    return restApp.schemaRegistry().isMaster();
-  }
-
-  public void setMaster(SchemaRegistryIdentity schemaRegistryIdentity)
-      throws SchemaRegistryException {
-    restApp.schemaRegistry().setMaster(schemaRegistryIdentity);
-  }
-
-  public SchemaRegistryIdentity myIdentity() {
-    return restApp.schemaRegistry().myIdentity();
-  }
-
-  public SchemaRegistryIdentity masterIdentity() {
-    return restApp.schemaRegistry().masterIdentity();
-  }
-  
-  public SchemaRegistry schemaRegistry() {
-    return restApp.schemaRegistry();
-  }
 }

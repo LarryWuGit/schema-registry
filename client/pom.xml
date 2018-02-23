@@ -16,10 +16,6 @@
 
     <dependencies>
         <dependency>
-            <groupId>org.apache.kafka</groupId>
-            <artifactId>kafka-clients</artifactId>
-        </dependency>
-        <dependency>
             <groupId>io.confluent</groupId>
             <artifactId>common-config</artifactId>
         </dependency>

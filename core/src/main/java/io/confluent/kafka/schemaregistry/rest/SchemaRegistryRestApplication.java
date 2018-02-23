@@ -23,7 +23,6 @@ import io.confluent.kafka.schemaregistry.rest.resources.SchemasResource;
 import io.confluent.kafka.schemaregistry.rest.resources.SubjectVersionsResource;
 import io.confluent.kafka.schemaregistry.rest.resources.SubjectsResource;
 import io.confluent.kafka.schemaregistry.storage.HBaseSchemaRegistry;
-import io.confluent.kafka.schemaregistry.storage.KafkaSchemaRegistry;
 import io.confluent.kafka.schemaregistry.storage.SchemaRegistry;
 import io.confluent.rest.Application;
 import io.confluent.rest.RestConfigException;
@@ -103,11 +102,5 @@ public class SchemaRegistryRestApplication extends Application<SchemaRegistryCon
         }
       }
     }
-  }
-
-  // for testing purpose only
-  public KafkaSchemaRegistry schemaRegistry() {
-    //return schemaRegistry;
-    return null;
   }
 }

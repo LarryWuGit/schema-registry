@@ -32,9 +32,6 @@ public class BasicAuthCredentialProviderFactory {
       case USER_INFO:
         basicAuthCredentialProvider = new UserInfoCredentialProvider();
         break;
-      case SASL_INHERIT:
-        basicAuthCredentialProvider = new SaslBasicAuthCredentialProvider();
-        break;
       default:
         break;
     }

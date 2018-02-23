@@ -19,7 +19,6 @@ package io.confluent.kafka.schemaregistry.storage;
 import com.google.protobuf.ServiceException;
 import io.confluent.kafka.schemaregistry.client.rest.entities.SchemaString;
 import io.confluent.kafka.schemaregistry.rest.exceptions.Errors;
-import kafka.utils.json.JsonObject;
 import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.fs.Path;
 import org.apache.hadoop.hbase.HBaseConfiguration;
@@ -183,10 +182,10 @@ public class HBaseFacade {
     return 1;
   }
 
-  public static class SubjectVersionsRecord {
+  /*public static class SubjectVersionsRecord {
     public String subject;
     public JsonObject versions;
-  }
+  }*/
 
   public void getSubject(String subject) {
     try (Connection connection = ConnectionFactory.createConnection(hbaseConfig);
