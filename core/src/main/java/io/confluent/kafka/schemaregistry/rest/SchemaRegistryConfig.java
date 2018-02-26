@@ -142,6 +142,9 @@ public class SchemaRegistryConfig extends RestConfig {
       "schema.registry.resource.extension.class";
   public static final String SCHEMAREGISTRY_INTER_INSTANCE_PROTOCOL_CONFIG =
       "schema.registry.inter.instance.protocol";
+  public static final String HBASE_ZOOKEEPER_QUORUM_CONFIG = "hbase.zookeeper.quorum";
+  public static final String HBASE_ZOOKEEPER_PROPERTY_CLIENTPORT_CONFIG =
+          "hbase.zookeeper.property.clientPort";
 
   protected static final String SCHEMAREGISTRY_GROUP_ID_DOC =
       "Use this setting to override the group.id for the Kafka group used when Kafka is used for "
@@ -280,6 +283,11 @@ public class SchemaRegistryConfig extends RestConfig {
       + "to master node calls for writes and deletes will use the specified protocol. The default "
       + "value would be `http`. When `https` is set, `ssl.keystore.` and "
       + "`ssl.truststore.` configs are used while making the call.";
+  protected static final String HBASE_ZOOKEEPER_QUORUM_CONFIG_DOC =
+          "The name of the HBase server";
+  protected static final String HBASE_ZOOKEEPER_PROPERTY_CLIENTPORT_CONFIG_DOC =
+          "The port of the HBase server";
+
 
   private static final boolean ZOOKEEPER_SET_ACL_DEFAULT = false;
   private static final String COMPATIBILITY_DEFAULT = "backward";
@@ -334,6 +342,14 @@ public class SchemaRegistryConfig extends RestConfig {
         .define(SCHEMAREGISTRY_ZK_NAMESPACE, ConfigDef.Type.STRING,
                 DEFAULT_SCHEMAREGISTRY_ZK_NAMESPACE,
                 ConfigDef.Importance.LOW, SCHEMAREGISTRY_ZK_NAMESPACE_DOC
+        )
+        .define(HBASE_ZOOKEEPER_QUORUM_CONFIG, ConfigDef.Type.STRING,
+                "localhost",
+                ConfigDef.Importance.LOW, HBASE_ZOOKEEPER_QUORUM_CONFIG_DOC
+        )
+        .define(HBASE_ZOOKEEPER_PROPERTY_CLIENTPORT_CONFIG, ConfigDef.Type.STRING,
+                "2181",
+                ConfigDef.Importance.LOW, HBASE_ZOOKEEPER_PROPERTY_CLIENTPORT_CONFIG_DOC
         )
         .define(SCHEMAREGISTRY_GROUP_ID_CONFIG, ConfigDef.Type.STRING, "schema-registry",
                 ConfigDef.Importance.MEDIUM, SCHEMAREGISTRY_GROUP_ID_DOC

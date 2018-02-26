@@ -18,12 +18,12 @@ package io.confluent.kafka.schemaregistry.storage.hbase;
 
 import com.google.protobuf.ServiceException;
 import io.confluent.kafka.schemaregistry.client.rest.entities.SchemaString;
+import io.confluent.kafka.schemaregistry.rest.SchemaRegistryConfig;
 import io.confluent.kafka.schemaregistry.rest.exceptions.Errors;
 import io.confluent.kafka.schemaregistry.storage.Store;
 import io.confluent.kafka.schemaregistry.storage.exceptions.StoreException;
 import io.confluent.kafka.schemaregistry.storage.exceptions.StoreInitializationException;
 import org.apache.hadoop.conf.Configuration;
-import org.apache.hadoop.fs.Path;
 import org.apache.hadoop.hbase.HBaseConfiguration;
 import org.apache.hadoop.hbase.HColumnDescriptor;
 import org.apache.hadoop.hbase.HTableDescriptor;
@@ -43,15 +43,19 @@ import java.io.IOException;
 import java.util.Iterator;
 import java.util.Map;
 
+import static io.confluent.kafka.schemaregistry.rest.SchemaRegistryConfig.HBASE_ZOOKEEPER_PROPERTY_CLIENTPORT_CONFIG;
+import static io.confluent.kafka.schemaregistry.rest.SchemaRegistryConfig.HBASE_ZOOKEEPER_QUORUM_CONFIG;
+
 public class SchemasTable implements Store<Integer, SchemaString> {
   private static final String HBASE_TABLE_NAME = "schemaRegistry_schemas";
   private static final String FAMILY_NAME = "sr";
 
   private TableName tableName = null;
-
   private Configuration hbaseConfig = null;
+  SchemaRegistryConfig schemaRegistryConfig;
 
-  public SchemasTable() {
+  public SchemasTable(SchemaRegistryConfig schemaRegistryConfig) {
+    this.schemaRegistryConfig = schemaRegistryConfig;
   }
 
   @Override
@@ -60,11 +64,10 @@ public class SchemasTable implements Store<Integer, SchemaString> {
 
     hbaseConfig = HBaseConfiguration.create();
 
-    String path = this.getClass()
-        .getClassLoader()
-        .getResource("hbase-site.xml")
-        .getPath();
-    hbaseConfig.addResource(new Path(path));
+    hbaseConfig.set(HBASE_ZOOKEEPER_QUORUM_CONFIG,
+            schemaRegistryConfig.getString(HBASE_ZOOKEEPER_QUORUM_CONFIG));
+    hbaseConfig.set(HBASE_ZOOKEEPER_PROPERTY_CLIENTPORT_CONFIG,
+            schemaRegistryConfig.getString(HBASE_ZOOKEEPER_PROPERTY_CLIENTPORT_CONFIG));
 
     try {
       HBaseAdmin.checkHBaseAvailable(hbaseConfig);

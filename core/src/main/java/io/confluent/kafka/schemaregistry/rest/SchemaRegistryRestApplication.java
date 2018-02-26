@@ -52,13 +52,14 @@ public class SchemaRegistryRestApplication extends Application<SchemaRegistryCon
   @Override
   public void setupResources(Configurable<?> config, SchemaRegistryConfig schemaRegistryConfig) {
     try {
-      schemaRegistry = new HBaseSchemaRegistry();
+      schemaRegistry = new HBaseSchemaRegistry(schemaRegistryConfig);
       schemaRegistry.init();
     } catch (SchemaRegistryException e) {
       onShutdown();
       log.error("Error starting the schema registry", e);
       System.exit(1);
     }
+
 
     schemaRegistryResourceExtensions =
         schemaRegistryConfig.getConfiguredInstances(

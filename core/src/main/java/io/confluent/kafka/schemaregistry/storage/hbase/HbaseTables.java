@@ -17,6 +17,7 @@
 package io.confluent.kafka.schemaregistry.storage.hbase;
 
 import io.confluent.kafka.schemaregistry.exceptions.SchemaRegistryException;
+import io.confluent.kafka.schemaregistry.rest.SchemaRegistryConfig;
 import io.confluent.kafka.schemaregistry.rest.exceptions.Errors;
 
 public class HbaseTables {
@@ -24,14 +25,20 @@ public class HbaseTables {
   public static SchemasTable schemasTable;
   public static SubjectVersionsTable subjectVersionsTable;
 
+  SchemaRegistryConfig schemaRegistryConfig;
+
+  public HbaseTables(SchemaRegistryConfig schemaRegistryConfig) {
+    this.schemaRegistryConfig = schemaRegistryConfig;
+  }
+
   public void init() throws SchemaRegistryException {
     try {
-      schemaIdCounterTable = new SchemaIdCounterTable();
+      schemaIdCounterTable = new SchemaIdCounterTable(schemaRegistryConfig);
 
-      schemasTable = new SchemasTable();
+      schemasTable = new SchemasTable(schemaRegistryConfig);
       schemasTable.init();
 
-      subjectVersionsTable = new SubjectVersionsTable();
+      subjectVersionsTable = new SubjectVersionsTable(schemaRegistryConfig);
       subjectVersionsTable.init();
     } catch (Exception e) {
       e.printStackTrace();

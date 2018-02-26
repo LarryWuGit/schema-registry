@@ -17,9 +17,9 @@
 package io.confluent.kafka.schemaregistry.storage.hbase;
 
 import com.google.protobuf.ServiceException;
+import io.confluent.kafka.schemaregistry.rest.SchemaRegistryConfig;
 import io.confluent.kafka.schemaregistry.rest.exceptions.Errors;
 import org.apache.hadoop.conf.Configuration;
-import org.apache.hadoop.fs.Path;
 import org.apache.hadoop.hbase.HBaseConfiguration;
 import org.apache.hadoop.hbase.HColumnDescriptor;
 import org.apache.hadoop.hbase.HTableDescriptor;
@@ -36,24 +36,25 @@ import org.apache.hadoop.hbase.util.Bytes;
 
 import java.io.IOException;
 
+import static io.confluent.kafka.schemaregistry.rest.SchemaRegistryConfig.HBASE_ZOOKEEPER_PROPERTY_CLIENTPORT_CONFIG;
+import static io.confluent.kafka.schemaregistry.rest.SchemaRegistryConfig.HBASE_ZOOKEEPER_QUORUM_CONFIG;
+
 public class SchemaIdCounterTable {
   private static final String HBASE_TABLE_NAME = "schemaRegistry_schemaIdCounter";
   private static final String FAMILY_NAME = "sr";
   private static final String SCHEMA_ID_COUNTER_COLUMN_NAME = "schemaIdCounter";
 
-  private TableName tableName = null;
+  private TableName tableName;
+  private Configuration hbaseConfig;
 
-  private Configuration hbaseConfig = null;
-
-  public SchemaIdCounterTable() {
+  public SchemaIdCounterTable(SchemaRegistryConfig schemaRegistryConfig) {
     tableName = TableName.valueOf(HBASE_TABLE_NAME);
     hbaseConfig = HBaseConfiguration.create();
 
-    String path = this.getClass()
-        .getClassLoader()
-        .getResource("hbase-site.xml")
-        .getPath();
-    hbaseConfig.addResource(new Path(path));
+    hbaseConfig.set(HBASE_ZOOKEEPER_QUORUM_CONFIG,
+            schemaRegistryConfig.getString(HBASE_ZOOKEEPER_QUORUM_CONFIG));
+    hbaseConfig.set(HBASE_ZOOKEEPER_PROPERTY_CLIENTPORT_CONFIG,
+            schemaRegistryConfig.getString(HBASE_ZOOKEEPER_PROPERTY_CLIENTPORT_CONFIG));
 
     try {
       HBaseAdmin.checkHBaseAvailable(hbaseConfig);

@@ -22,6 +22,7 @@ import io.confluent.kafka.schemaregistry.client.rest.entities.Schema;
 import io.confluent.kafka.schemaregistry.client.rest.entities.SchemaString;
 import io.confluent.kafka.schemaregistry.exceptions.InvalidSchemaException;
 import io.confluent.kafka.schemaregistry.exceptions.SchemaRegistryException;
+import io.confluent.kafka.schemaregistry.rest.SchemaRegistryConfig;
 import io.confluent.kafka.schemaregistry.rest.VersionId;
 import io.confluent.kafka.schemaregistry.rest.exceptions.Errors;
 import io.confluent.kafka.schemaregistry.storage.exceptions.StoreException;
@@ -35,15 +36,16 @@ import java.util.Set;
 
 public class HBaseSchemaRegistry implements SchemaRegistry {
   HbaseTables hbaseTables;
+  SchemaRegistryConfig schemaRegistryConfig;
 
-  public HBaseSchemaRegistry() {
-    //hBaseStore = new HBaseStore<>();
+  public HBaseSchemaRegistry(SchemaRegistryConfig schemaRegistryConfig) {
+    this.schemaRegistryConfig = schemaRegistryConfig;
   }
 
   @Override
   public void init() throws SchemaRegistryException {
     try {
-      hbaseTables = new HbaseTables();
+      hbaseTables = new HbaseTables(schemaRegistryConfig);
       hbaseTables.init();
     } catch (Exception e) {
       e.printStackTrace();
