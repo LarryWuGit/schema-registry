@@ -28,17 +28,6 @@ import io.confluent.kafka.schemaregistry.storage.exceptions.StoreException;
 import io.confluent.kafka.schemaregistry.storage.exceptions.StoreInitializationException;
 import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.hbase.HBaseConfiguration;
-import org.apache.hadoop.hbase.HColumnDescriptor;
-import org.apache.hadoop.hbase.HTableDescriptor;
-import org.apache.hadoop.hbase.TableName;
-import org.apache.hadoop.hbase.client.Admin;
-import org.apache.hadoop.hbase.client.Connection;
-import org.apache.hadoop.hbase.client.ConnectionFactory;
-import org.apache.hadoop.hbase.client.Get;
-import org.apache.hadoop.hbase.client.HBaseAdmin;
-import org.apache.hadoop.hbase.client.Put;
-import org.apache.hadoop.hbase.client.Result;
-import org.apache.hadoop.hbase.client.Table;
 import org.apache.hadoop.hbase.util.Bytes;
 import sun.reflect.generics.reflectiveObjects.NotImplementedException;
 
@@ -52,21 +41,29 @@ import static io.confluent.kafka.schemaregistry.rest.SchemaRegistryConfig.HBASE_
 import static io.confluent.kafka.schemaregistry.rest.SchemaRegistryConfig.HBASE_ZOOKEEPER_QUORUM_CONFIG;
 
 public class SubjectVersionsTable
-    implements Store<String, SubjectVersionsTable.SubjectVersionsRow> {
+        implements Store<String, SubjectVersionsTable.SubjectVersionsRow> {
   private static final String HBASE_TABLE_NAME = "schemaRegistry_subjectVersions";
   private static final String FAMILY_NAME = "sr";
 
-  private TableName tableName = null;
   private Configuration hbaseConfig = null;
   SchemaRegistryConfig schemaRegistryConfig;
 
+  HbaseTable hbaseTable;
+
   public SubjectVersionsTable(SchemaRegistryConfig schemaRegistryConfig) {
     this.schemaRegistryConfig = schemaRegistryConfig;
+    this.hbaseTable = null;
+  }
+
+  // This constructor create for test dependency injection.
+  public SubjectVersionsTable(SchemaRegistryConfig schemaRegistryConfig,
+                              HbaseTable hbaseTable) {
+    this.schemaRegistryConfig = schemaRegistryConfig;
+    this.hbaseTable = hbaseTable;
   }
 
   @Override
   public void init() throws StoreInitializationException {
-    tableName = TableName.valueOf(HBASE_TABLE_NAME);
     hbaseConfig = HBaseConfiguration.create();
 
     hbaseConfig.set(HBASE_ZOOKEEPER_QUORUM_CONFIG,
@@ -75,7 +72,11 @@ public class SubjectVersionsTable
             schemaRegistryConfig.getString(HBASE_ZOOKEEPER_PROPERTY_CLIENTPORT_CONFIG));
 
     try {
-      HBaseAdmin.checkHBaseAvailable(hbaseConfig);
+      if (hbaseTable == null) {
+        hbaseTable = new HbaseTable(hbaseConfig, HBASE_TABLE_NAME);
+      }
+
+      hbaseTable.checkHBaseAvailable();
     } catch (ServiceException e) {
       e.printStackTrace();
       throw Errors.schemaRegistryException("HBase not available", e);
@@ -84,14 +85,9 @@ public class SubjectVersionsTable
       throw Errors.schemaRegistryException("HBase not available", e);
     }
 
-    try (Connection connection = ConnectionFactory.createConnection(hbaseConfig)) {
-      Admin admin = connection.getAdmin();
-
-      // Does Subject Versions table exists?
-      if (!admin.tableExists(tableName)) {
-        HTableDescriptor desc = new HTableDescriptor(tableName);
-        desc.addFamily(new HColumnDescriptor(FAMILY_NAME));
-        admin.createTable(desc);
+    try {
+      if (!hbaseTable.tableExists()) {
+        hbaseTable.createTable(FAMILY_NAME);
       }
     } catch (IOException e) {
       e.printStackTrace();
@@ -101,15 +97,11 @@ public class SubjectVersionsTable
 
   @Override
   public SubjectVersionsRow get(String key) throws StoreException {
-    try (Connection connection = ConnectionFactory.createConnection(hbaseConfig);
-         Table table = connection.getTable(tableName)) {
-      Result result = table.get(new Get(Bytes.toBytes(key)));
-      byte[] jsonSubjectVersions =
-          result.getValue(Bytes.toBytes(FAMILY_NAME), Bytes.toBytes("jsonSubjectVersions"));
-
+    try {
+      byte[] jsonSubjectVersions = hbaseTable.get(FAMILY_NAME, "jsonSubjectVersions", key);
       String json = Bytes.toString(jsonSubjectVersions);
-      System.out.println(result);
       SubjectVersionsRow versionsRow = new SubjectVersionsRow(json);
+
       return versionsRow;
     } catch (IOException e) {
       e.printStackTrace();
@@ -118,7 +110,7 @@ public class SubjectVersionsTable
   }
 
   public SubjectVersion getSubjectVersion(String subject, VersionId versionId)
-      throws StoreException {
+          throws StoreException {
     SubjectVersion subjectVersion;
     SubjectVersionsRow row = this.get(subject);
 
@@ -132,17 +124,9 @@ public class SubjectVersionsTable
 
   @Override
   public void put(String key, SubjectVersionsRow value)
-      throws StoreException {
-    try (Connection connection = ConnectionFactory.createConnection(hbaseConfig);
-         Table schemasTable = connection.getTable(tableName)) {
-      byte[] row = Bytes.toBytes("" + key);
-      Put p = new Put(row);
-      p.addImmutable(
-          FAMILY_NAME.getBytes(),
-          Bytes.toBytes("jsonSubjectVersions"),
-          Bytes.toBytes(value.toJson()));
-      schemasTable.put(p);
-
+          throws StoreException {
+    try {
+      hbaseTable.put(FAMILY_NAME, "jsonSubjectVersions", key, value.toJson());
     } catch (IOException e) {
       e.printStackTrace();
       throw Errors.schemaRegistryException("Cannot create connection to HBase", e);
@@ -151,13 +135,13 @@ public class SubjectVersionsTable
 
   @Override
   public Iterator<SubjectVersionsRow> getAll(String key1, String key2)
-      throws StoreException {
+          throws StoreException {
     throw new NotImplementedException();
   }
 
   @Override
   public void putAll(Map<String, SubjectVersionsRow> entries)
-      throws StoreException {
+          throws StoreException {
     throw new NotImplementedException();
   }
 
@@ -176,7 +160,7 @@ public class SubjectVersionsTable
   }
 
   public void addNewVersion(String subject, int schemaId)
-      throws StoreException {
+          throws StoreException {
     SubjectVersionsRow row = this.get(subject);
     row.addVersion(schemaId);
     this.put(subject, row);
@@ -186,13 +170,20 @@ public class SubjectVersionsTable
     List<SubjectVersion> subjectVersions;
     ObjectMapper objectMapper;
 
+    public SubjectVersionsRow() {
+      objectMapper = new ObjectMapper();
+      subjectVersions = new ArrayList<>();
+    }
+
+
     public SubjectVersionsRow(String jsonString) {
       try {
         objectMapper = new ObjectMapper();
 
         if (jsonString != null && jsonString.trim().length() > 0) {
           TypeReference<List<SubjectVersion>> mapType =
-              new TypeReference<List<SubjectVersion>>(){};
+              new TypeReference<List<SubjectVersion>>()
+            {};
           subjectVersions = objectMapper.readValue(jsonString, mapType);
         } else {
           subjectVersions = new ArrayList<>();
@@ -201,7 +192,7 @@ public class SubjectVersionsTable
         e.printStackTrace();
 
         throw Errors.schemaRegistryException(
-            "Unable to parse JSON when reading Subject Version table: " + jsonString, e);
+                "Unable to parse JSON when reading Subject Version table: " + jsonString, e);
       }
     }
 
@@ -278,7 +269,5 @@ public class SubjectVersionsTable
       this.version = version;
       this.schemaId = schemaId;
     }
-
   }
-
 }

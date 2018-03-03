@@ -21,18 +21,6 @@ import io.confluent.kafka.schemaregistry.rest.SchemaRegistryConfig;
 import io.confluent.kafka.schemaregistry.rest.exceptions.Errors;
 import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.hbase.HBaseConfiguration;
-import org.apache.hadoop.hbase.HColumnDescriptor;
-import org.apache.hadoop.hbase.HTableDescriptor;
-import org.apache.hadoop.hbase.TableName;
-import org.apache.hadoop.hbase.client.Admin;
-import org.apache.hadoop.hbase.client.Connection;
-import org.apache.hadoop.hbase.client.ConnectionFactory;
-import org.apache.hadoop.hbase.client.HBaseAdmin;
-import org.apache.hadoop.hbase.client.Increment;
-import org.apache.hadoop.hbase.client.Put;
-import org.apache.hadoop.hbase.client.Result;
-import org.apache.hadoop.hbase.client.Table;
-import org.apache.hadoop.hbase.util.Bytes;
 
 import java.io.IOException;
 
@@ -44,11 +32,25 @@ public class SchemaIdCounterTable {
   private static final String FAMILY_NAME = "sr";
   private static final String SCHEMA_ID_COUNTER_COLUMN_NAME = "schemaIdCounter";
 
-  private TableName tableName;
+  //private TableName tableName;
   private Configuration hbaseConfig;
+  SchemaRegistryConfig schemaRegistryConfig;
+
+  HbaseTable hbaseTable;
 
   public SchemaIdCounterTable(SchemaRegistryConfig schemaRegistryConfig) {
-    tableName = TableName.valueOf(HBASE_TABLE_NAME);
+    this.schemaRegistryConfig = schemaRegistryConfig;
+    this.hbaseTable = null;
+  }
+
+  // This constructor create for test dependency injection.
+  public SchemaIdCounterTable(SchemaRegistryConfig schemaRegistryConfig,
+                              HbaseTable hbaseTable) {
+    this.schemaRegistryConfig = schemaRegistryConfig;
+    this.hbaseTable = hbaseTable;
+  }
+
+  public void init() {
     hbaseConfig = HBaseConfiguration.create();
 
     hbaseConfig.set(HBASE_ZOOKEEPER_QUORUM_CONFIG,
@@ -57,7 +59,8 @@ public class SchemaIdCounterTable {
             schemaRegistryConfig.getString(HBASE_ZOOKEEPER_PROPERTY_CLIENTPORT_CONFIG));
 
     try {
-      HBaseAdmin.checkHBaseAvailable(hbaseConfig);
+      hbaseTable = new HbaseTable(hbaseConfig, HBASE_TABLE_NAME);
+      hbaseTable.checkHBaseAvailable();
     } catch (ServiceException e) {
       e.printStackTrace();
 
@@ -68,24 +71,10 @@ public class SchemaIdCounterTable {
       throw Errors.schemaRegistryException("HBase not available", e);
     }
 
-    try (Connection connection = ConnectionFactory.createConnection(hbaseConfig)) {
-      Admin admin = connection.getAdmin();
-
-      // Does Schema ID Counter table exists?
-      if (!admin.tableExists(tableName)) {
-        HTableDescriptor desc = new HTableDescriptor(tableName);
-        desc.addFamily(new HColumnDescriptor(FAMILY_NAME));
-        admin.createTable(desc);
-
-        Table schemaIdCounterTable = connection.getTable(tableName);
-        byte[] row = Bytes.toBytes(SCHEMA_ID_COUNTER_COLUMN_NAME);
-        Put p = new Put(row);
-        p.addImmutable(FAMILY_NAME.getBytes(),
-            Bytes.toBytes("currentSchemaId"), Bytes.toBytes(0L));
-
-        schemaIdCounterTable.put(p);
-
-        schemaIdCounterTable.close();
+    try {
+      if (!hbaseTable.tableExists()) {
+        hbaseTable.createTable(FAMILY_NAME);
+        hbaseTable.put(FAMILY_NAME, SCHEMA_ID_COUNTER_COLUMN_NAME, "currentSchemaId", 0L);
       }
     } catch (IOException e) {
       e.printStackTrace();
@@ -95,23 +84,10 @@ public class SchemaIdCounterTable {
   }
 
   public int incrementAndGetNextAvailableSchemaId() {
-    Increment increment;
-
-    try (Connection connection = ConnectionFactory.createConnection(hbaseConfig);
-         Table schemaIdCounterTable = connection.getTable(tableName)) {
-      byte[] row = Bytes.toBytes(SCHEMA_ID_COUNTER_COLUMN_NAME);
-      increment = new Increment(row);
-      increment.addColumn(Bytes.toBytes(FAMILY_NAME),
-          Bytes.toBytes("currentSchemaId"), 1L);
-
-      Result result = schemaIdCounterTable.increment(increment);
-      System.out.println(result);
-
-      byte[] newSchemaIdBytes =
-          result.getValue(Bytes.toBytes(FAMILY_NAME), Bytes.toBytes("currentSchemaId"));
-
-      long newSchemaId = Bytes.toLong(newSchemaIdBytes);
-      return (int) newSchemaId;
+    try {
+      int newSchemaId = hbaseTable.incrementAndGet(FAMILY_NAME, SCHEMA_ID_COUNTER_COLUMN_NAME,
+              "currentSchemaId");
+      return newSchemaId;
     } catch (IOException e) {
       e.printStackTrace();
 

@@ -40,12 +40,20 @@ public class HBaseSchemaRegistry implements SchemaRegistry {
 
   public HBaseSchemaRegistry(SchemaRegistryConfig schemaRegistryConfig) {
     this.schemaRegistryConfig = schemaRegistryConfig;
+
+    this.hbaseTables = new HbaseTables(schemaRegistryConfig);
+  }
+
+  // This constructor create for testing dependency injection.
+  public HBaseSchemaRegistry(SchemaRegistryConfig schemaRegistryConfig,
+                             HbaseTables hbaseTables) {
+    this.schemaRegistryConfig = schemaRegistryConfig;
+    this.hbaseTables = hbaseTables;
   }
 
   @Override
   public void init() throws SchemaRegistryException {
     try {
-      hbaseTables = new HbaseTables(schemaRegistryConfig);
       hbaseTables.init();
     } catch (Exception e) {
       e.printStackTrace();
@@ -56,22 +64,22 @@ public class HBaseSchemaRegistry implements SchemaRegistry {
 
   @Override
   public int register(String subject, Schema schema)
-      throws SchemaRegistryException {
+          throws SchemaRegistryException {
     try {
-      // I think, this function checks that the schema is valid AVRO, and looks purdy.
       canonicalizeSchema(schema);
 
       // Check if schema string is already in database, and get associated SchemaId
-      Integer schemaId = hbaseTables.schemasTable.doesSchemaStringExist(schema.getSchema());
+      //Integer schemaId = hbaseTables.schemasTable.doesSchemaStringExist(schema.getSchema());
+      Integer schemaId = null;
       if (schemaId != null) {
         return schemaId;
       } else {
         // If not in database then add it including get new schema id;
-        schemaId = hbaseTables.schemaIdCounterTable.incrementAndGetNextAvailableSchemaId();
-        hbaseTables.schemasTable.put(schemaId, new SchemaString(schema.getSchema()));
+        schemaId = hbaseTables.getSchemaIdCounterTable().incrementAndGetNextAvailableSchemaId();
+        hbaseTables.getSchemasTable().put(schemaId, new SchemaString(schema.getSchema()));
       }
 
-      hbaseTables.subjectVersionsTable.addNewVersion(schema.getSubject(), schemaId);
+      hbaseTables.getSubjectVersionsTable().addNewVersion(schema.getSubject(), schemaId);
 
       return schemaId;
     } catch (StoreException se) {
@@ -80,7 +88,7 @@ public class HBaseSchemaRegistry implements SchemaRegistry {
   }
 
   private AvroSchema canonicalizeSchema(Schema schema)
-      throws InvalidSchemaException {
+          throws InvalidSchemaException {
     AvroSchema avroSchema = AvroUtils.parseSchema(schema.getSchema());
     if (avroSchema == null) {
       throw new InvalidSchemaException("Invalid schema " + schema.toString());
@@ -91,20 +99,26 @@ public class HBaseSchemaRegistry implements SchemaRegistry {
 
   @Override
   public Schema get(String subject, int version, boolean returnDeletedSchema)
-      throws SchemaRegistryException {
-    Schema schema = null;
+          throws SchemaRegistryException {
+    Schema schema;
     try {
       SubjectVersionsTable.SubjectVersion subjectVersion =
-          hbaseTables.subjectVersionsTable.getSubjectVersion(subject, new VersionId(version));
+              hbaseTables.getSubjectVersionsTable().getSubjectVersion(subject,
+                      new VersionId(version));
 
-      SchemaString schemaString = hbaseTables.schemasTable.get(subjectVersion.schemaId);
+      if (subjectVersion == null) {
+        throw Errors.subjectNotFoundException();
+      }
+
+
+      SchemaString schemaString = hbaseTables.getSchemasTable().get(subjectVersion.schemaId);
 
       schema =
-          new Schema(
-              subject,
-              subjectVersion.version,
-              subjectVersion.schemaId,
-              schemaString.getSchemaString());
+              new Schema(
+                      subject,
+                      subjectVersion.version,
+                      subjectVersion.schemaId,
+                      schemaString.getSchemaString());
     } catch (StoreException e) {
       e.printStackTrace();
 
@@ -116,7 +130,7 @@ public class HBaseSchemaRegistry implements SchemaRegistry {
   @Override
   public SchemaString get(int id) throws SchemaRegistryException {
     try {
-      SchemaString schemaString = hbaseTables.schemasTable.get(id);
+      SchemaString schemaString = hbaseTables.getSchemasTable().get(id);
       return schemaString;
     } catch (StoreException e) {
       e.printStackTrace();
@@ -132,25 +146,25 @@ public class HBaseSchemaRegistry implements SchemaRegistry {
 
   @Override
   public Iterator<Schema> getAllVersions(String subject, boolean filterDeletes)
-      throws SchemaRegistryException {
+          throws SchemaRegistryException {
     throw new NotImplementedException();
   }
 
   @Override
   public Schema getLatestVersion(String subject) throws SchemaRegistryException {
-    Schema schema = null;
+    Schema schema;
     try {
       SubjectVersionsTable.SubjectVersion subjectVersion =
-          hbaseTables.subjectVersionsTable.getSubjectVersion(subject, new VersionId(-1));
+              hbaseTables.getSubjectVersionsTable().getSubjectVersion(subject, new VersionId(-1));
 
-      SchemaString schemaString = hbaseTables.schemasTable.get(subjectVersion.schemaId);
+      SchemaString schemaString = hbaseTables.getSchemasTable().get(subjectVersion.schemaId);
 
       schema =
-          new Schema(
-              subject,
-              subjectVersion.version,
-              subjectVersion.schemaId,
-              schemaString.getSchemaString());
+              new Schema(
+                      subject,
+                      subjectVersion.version,
+                      subjectVersion.schemaId,
+                      schemaString.getSchemaString());
     } catch (StoreException e) {
       e.printStackTrace();
 
@@ -166,28 +180,29 @@ public class HBaseSchemaRegistry implements SchemaRegistry {
 
   @Override
   public Schema lookUpSchemaUnderSubject(String subject, Schema schema, boolean lookupDeletedSchema)
-      throws SchemaRegistryException {
+          throws SchemaRegistryException {
     throw new NotImplementedException();
   }
 
   @Override
   public boolean isCompatible(String subject, String inputSchema, String targetSchema)
-      throws SchemaRegistryException {
+          throws SchemaRegistryException {
     throw new NotImplementedException();
   }
 
   @Override
   public boolean isCompatible(String subject, String newSchema, List<String> previousSchemas)
-      throws SchemaRegistryException {
+          throws SchemaRegistryException {
     throw new NotImplementedException();
   }
 
   @Override
-  public void close() {}
+  public void close() {
+  }
 
   @Override
   public void deleteSchemaVersion(String subject, Schema schema)
-      throws SchemaRegistryException {
+          throws SchemaRegistryException {
     throw new NotImplementedException();
   }
 }

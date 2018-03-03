@@ -21,9 +21,9 @@ import io.confluent.kafka.schemaregistry.rest.SchemaRegistryConfig;
 import io.confluent.kafka.schemaregistry.rest.exceptions.Errors;
 
 public class HbaseTables {
-  public static SchemaIdCounterTable schemaIdCounterTable;
-  public static SchemasTable schemasTable;
-  public static SubjectVersionsTable subjectVersionsTable;
+  SchemaIdCounterTable schemaIdCounterTable;
+  SchemasTable schemasTable;
+  SubjectVersionsTable subjectVersionsTable;
 
   SchemaRegistryConfig schemaRegistryConfig;
 
@@ -34,6 +34,7 @@ public class HbaseTables {
   public void init() throws SchemaRegistryException {
     try {
       schemaIdCounterTable = new SchemaIdCounterTable(schemaRegistryConfig);
+      schemaIdCounterTable.init();
 
       schemasTable = new SchemasTable(schemaRegistryConfig);
       schemasTable.init();
@@ -44,5 +45,17 @@ public class HbaseTables {
       e.printStackTrace();
       throw Errors.schemaRegistryException("Unable to init HBase store", e);
     }
+  }
+
+  public SchemaIdCounterTable getSchemaIdCounterTable() {
+    return schemaIdCounterTable;
+  }
+
+  public SchemasTable getSchemasTable() {
+    return schemasTable;
+  }
+
+  public SubjectVersionsTable getSubjectVersionsTable() {
+    return subjectVersionsTable;
   }
 }

@@ -25,17 +25,6 @@ import io.confluent.kafka.schemaregistry.storage.exceptions.StoreException;
 import io.confluent.kafka.schemaregistry.storage.exceptions.StoreInitializationException;
 import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.hbase.HBaseConfiguration;
-import org.apache.hadoop.hbase.HColumnDescriptor;
-import org.apache.hadoop.hbase.HTableDescriptor;
-import org.apache.hadoop.hbase.TableName;
-import org.apache.hadoop.hbase.client.Admin;
-import org.apache.hadoop.hbase.client.Connection;
-import org.apache.hadoop.hbase.client.ConnectionFactory;
-import org.apache.hadoop.hbase.client.Get;
-import org.apache.hadoop.hbase.client.HBaseAdmin;
-import org.apache.hadoop.hbase.client.Put;
-import org.apache.hadoop.hbase.client.Result;
-import org.apache.hadoop.hbase.client.Table;
 import org.apache.hadoop.hbase.util.Bytes;
 import sun.reflect.generics.reflectiveObjects.NotImplementedException;
 
@@ -49,18 +38,26 @@ import static io.confluent.kafka.schemaregistry.rest.SchemaRegistryConfig.HBASE_
 public class SchemasTable implements Store<Integer, SchemaString> {
   private static final String HBASE_TABLE_NAME = "schemaRegistry_schemas";
   private static final String FAMILY_NAME = "sr";
-
-  private TableName tableName = null;
   private Configuration hbaseConfig = null;
   SchemaRegistryConfig schemaRegistryConfig;
 
+  HbaseTable hbaseTable;
+
   public SchemasTable(SchemaRegistryConfig schemaRegistryConfig) {
     this.schemaRegistryConfig = schemaRegistryConfig;
+    this.hbaseTable = null;
   }
+
+  // This constructor create for test dependency injection.
+  public SchemasTable(SchemaRegistryConfig schemaRegistryConfig,
+                      HbaseTable hbaseTable) {
+    this.schemaRegistryConfig = schemaRegistryConfig;
+    this.hbaseTable = hbaseTable;
+  }
+
 
   @Override
   public void init() throws StoreInitializationException {
-    tableName = TableName.valueOf(HBASE_TABLE_NAME);
 
     hbaseConfig = HBaseConfiguration.create();
 
@@ -70,7 +67,12 @@ public class SchemasTable implements Store<Integer, SchemaString> {
             schemaRegistryConfig.getString(HBASE_ZOOKEEPER_PROPERTY_CLIENTPORT_CONFIG));
 
     try {
-      HBaseAdmin.checkHBaseAvailable(hbaseConfig);
+      // If hbaseTable wasn't passed in, then create it.
+      if (hbaseTable == null) {
+        hbaseTable = new HbaseTable(hbaseConfig, HBASE_TABLE_NAME);
+      }
+
+      hbaseTable.checkHBaseAvailable();
     } catch (ServiceException e) {
       e.printStackTrace();
       throw Errors.schemaRegistryException("HBase not available", e);
@@ -79,14 +81,9 @@ public class SchemasTable implements Store<Integer, SchemaString> {
       throw Errors.schemaRegistryException("HBase not available", e);
     }
 
-    try (Connection connection = ConnectionFactory.createConnection(hbaseConfig)) {
-      Admin admin = connection.getAdmin();
-
-      // Does main Schema Strings table exists?
-      if (!admin.tableExists(tableName)) {
-        HTableDescriptor desc = new HTableDescriptor(tableName);
-        desc.addFamily(new HColumnDescriptor(FAMILY_NAME));
-        admin.createTable(desc);
+    try {
+      if (!hbaseTable.tableExists()) {
+        hbaseTable.createTable(FAMILY_NAME);
       }
 
     } catch (IOException e) {
@@ -97,11 +94,9 @@ public class SchemasTable implements Store<Integer, SchemaString> {
 
   @Override
   public SchemaString get(Integer key) throws StoreException {
-    try (Connection connection = ConnectionFactory.createConnection(hbaseConfig);
-         Table schemasTable = connection.getTable(tableName)) {
-      Result result = schemasTable.get(new Get(Bytes.toBytes("" + key)));
-      byte[] schemaStringBytes =
-          result.getValue(Bytes.toBytes(FAMILY_NAME), Bytes.toBytes("schemaString"));
+    try {
+
+      byte[] schemaStringBytes = hbaseTable.get(FAMILY_NAME, "schemaString", "" + key);
 
       SchemaString schemaString = new SchemaString();
       schemaString.setSchemaString(Bytes.toString(schemaStringBytes));
@@ -115,18 +110,13 @@ public class SchemasTable implements Store<Integer, SchemaString> {
 
   @Override
   public void put(Integer key, SchemaString value) throws StoreException {
-    try (Connection connection = ConnectionFactory.createConnection(hbaseConfig);
-         Table schemasTable = connection.getTable(tableName)) {
-      byte[] row = Bytes.toBytes("" + key);
-      Put p = new Put(row);
-      p.addImmutable(
-          FAMILY_NAME.getBytes(),
-          Bytes.toBytes("schemaString"),
-          Bytes.toBytes(value.getSchemaString()));
-      schemasTable.put(p);
+    try {
+      hbaseTable.put(FAMILY_NAME, "schemaString", "" + key, value.getSchemaString());
+
+
     } catch (IOException e) {
       e.printStackTrace();
-      throw Errors.schemaRegistryException("Cannot create connection to HBase", e);
+      throw Errors.storeException("Cannot create connection to HBase", e);
     }
   }
 
@@ -154,7 +144,4 @@ public class SchemasTable implements Store<Integer, SchemaString> {
   public void close() {
   }
 
-  public Integer doesSchemaStringExist(String schemaString) {
-    return null;
-  }
 }
